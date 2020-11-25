@@ -26,10 +26,11 @@ class DialogStyle {
   /// The dialog shape.
   final ShapeBorder dialogShape;
 
+
   /// Creates a new dialog style instance.
   const DialogStyle({
     this.titlePadding = const EdgeInsets.all(0),
-    this.contentPadding = const EdgeInsets.all(24),
+    this.contentPadding = const EdgeInsets.all(20),
     this.titleAlign,
     this.titleStyle,
     this.messagePadding = const EdgeInsets.all(0),
