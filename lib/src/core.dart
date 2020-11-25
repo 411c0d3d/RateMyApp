@@ -56,8 +56,7 @@ class RateMyApp {
   /// Initializes the plugin (loads base launch date, app launches and whether the dialog should not be opened again).
   Future<void> init() async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
-    conditions.forEach((condition) =>
-        condition.readFromPreferences(preferences, preferencesPrefix));
+    conditions.forEach((condition) => condition.readFromPreferences(preferences, preferencesPrefix));
     await callEvent(RateMyAppEventType.initialized);
   }
 
@@ -78,10 +77,7 @@ class RateMyApp {
   }
 
   /// Whether the dialog should be opened.
-  bool get shouldOpenDialog =>
-      conditions.firstWhere((condition) => !condition.isMet,
-          orElse: () => null) ==
-      null;
+  bool get shouldOpenDialog => conditions.firstWhere((condition) => !condition.isMet, orElse: () => null) == null;
 
   /// Returns the corresponding store identifier.
   String get storeIdentifier {
@@ -96,15 +92,6 @@ class RateMyApp {
     return null;
   }
 
-  /// Returns whether native review dialog is supported.
-  Future<bool> get isNativeReviewDialogSupported =>
-      _channel.invokeMethod<bool>('isNativeDialogSupported');
-
-  /// Launches the native review dialog.
-  /// You should check for [isNativeReviewDialogSupported] before running the method.
-  Future<void> launchNativeReviewDialog() =>
-      _channel.invokeMethod('launchNativeReviewDialog');
-
   /// Shows the rate dialog.
   Future<void> showRateDialog(
     BuildContext context, {
@@ -113,34 +100,27 @@ class RateMyApp {
     DialogContentBuilder contentBuilder,
     DialogActionsBuilder actionsBuilder,
     String rateButton,
-    String noButton,
     String laterButton,
     RateMyAppDialogButtonClickListener listener,
-    bool ignoreNativeDialog,
+    bool ignoreIOS = false,
     DialogStyle dialogStyle,
     VoidCallback onDismissed,
   }) async {
-    ignoreNativeDialog ??= Platform.isAndroid;
-    if (!ignoreNativeDialog && await isNativeReviewDialogSupported) {
+    if (!ignoreIOS && Platform.isIOS && await _channel.invokeMethod('canRequestReview')) {
       unawaited(callEvent(RateMyAppEventType.iOSRequestReview));
-      await launchNativeReviewDialog();
-      return;
+      return _channel.invokeMethod('requestReview');
     }
 
     unawaited(callEvent(RateMyAppEventType.dialogOpen));
-    RateMyAppDialogButton clickedButton =
-        await showDialog<RateMyAppDialogButton>(
+    RateMyAppDialogButton clickedButton = await showDialog<RateMyAppDialogButton>(
       context: context,
       builder: (context) => RateMyAppDialog(
         this,
         title: title ?? 'Rate this app',
-        message: message ??
-            'If you like this app, please take a little bit of your time to review it !\nIt really helps us and it shouldn\'t take you more than one minute.',
-        contentBuilder:
-            contentBuilder ?? ((context, defaultContent) => defaultContent),
+        message: message ?? 'If you like this app, please take a little bit of your time to review it !\nIt really helps us and it shouldn\'t take you more than one minute.',
+        contentBuilder: contentBuilder ?? ((context, defaultContent) => defaultContent),
         actionsBuilder: actionsBuilder,
         rateButton: rateButton ?? 'RATE',
-        noButton: noButton ?? 'NO THANKS',
         laterButton: laterButton ?? 'MAYBE LATER',
         listener: listener,
         dialogStyle: dialogStyle ?? const DialogStyle(),
@@ -159,19 +139,17 @@ class RateMyApp {
     String message,
     DialogContentBuilder contentBuilder,
     StarDialogActionsBuilder actionsBuilder,
-    bool ignoreNativeDialog,
+    bool ignoreIOS = false,
     DialogStyle dialogStyle,
     StarRatingOptions starRatingOptions,
     VoidCallback onDismissed,
   }) async {
-    ignoreNativeDialog ??= Platform.isAndroid;
-    if (!ignoreNativeDialog && await isNativeReviewDialogSupported) {
+    if (!ignoreIOS && Platform.isIOS && await _channel.invokeMethod('canRequestReview')) {
       unawaited(callEvent(RateMyAppEventType.iOSRequestReview));
-      await launchNativeReviewDialog();
-      return;
+      return _channel.invokeMethod('requestReview');
     }
 
-    assert(actionsBuilder != null, 'You should provide an actions builder.');
+    assert(actionsBuilder != null);
     unawaited(callEvent(RateMyAppEventType.starDialogOpen));
 
     RateMyAppDialogButton clickedButton = await showDialog(
@@ -179,10 +157,8 @@ class RateMyApp {
       builder: (context) => RateMyAppStarDialog(
         this,
         title: title ?? 'Rate this app',
-        message: message ??
-            'You like this app ? Then take a little bit of your time to leave a rating :',
-        contentBuilder:
-            contentBuilder ?? ((context, defaultContent) => defaultContent),
+        message: message ?? 'You like this app ? Then take a little bit of your time to leave a rating :',
+        contentBuilder: contentBuilder ?? ((context, defaultContent) => defaultContent),
         actionsBuilder: actionsBuilder,
         dialogStyle: dialogStyle ??
             const DialogStyle(
@@ -200,24 +176,12 @@ class RateMyApp {
   }
 
   /// Launches the corresponding store.
-  Future<LaunchStoreResult> launchStore() async {
-    int result = await _channel.invokeMethod('launchStore',
-        storeIdentifier == null ? null : {'appId': storeIdentifier});
-    switch (result) {
-      case 0:
-        return LaunchStoreResult.storeOpened;
-      case 1:
-        return LaunchStoreResult.browserOpened;
-      default:
-        return LaunchStoreResult.errorOccurred;
-    }
-  }
+  Future<void> launchStore() => RateMyApp._channel.invokeMethod('launchStore', {'appId': storeIdentifier});
 
   /// Calls the specified event.
   Future<void> callEvent(RateMyAppEventType eventType) async {
     bool saveSharedPreferences = false;
-    conditions.forEach((condition) => saveSharedPreferences =
-        condition.onEventOccurred(eventType) || saveSharedPreferences);
+    conditions.forEach((condition) => saveSharedPreferences = condition.onEventOccurred(eventType) || saveSharedPreferences);
     if (saveSharedPreferences) {
       await save();
     }
@@ -265,18 +229,4 @@ enum RateMyAppEventType {
   /// When the later button has been pressed.
   laterButtonPressed,
 
-  /// When the no button has been pressed.
-  noButtonPressed,
-}
-
-/// Allows to handle the result of the `launchStore` method.
-enum LaunchStoreResult {
-  /// The store has been opened, everything is okay.
-  storeOpened,
-
-  /// The store has not been opened, but a link to your app has been opened in the user web browser.
-  browserOpened,
-
-  /// An error occurred and the method did nothing.
-  errorOccurred,
 }
